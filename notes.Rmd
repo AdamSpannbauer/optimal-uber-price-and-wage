@@ -334,9 +334,52 @@ p1 + p2
 -   $k$ - realized number of providers for a given price $p$ and wage rate $w$ (wage as a percentage - $\alpha$ - of $p$)
     -   $k \le K$
 -   $\mu$ - average service speed; so $\frac{\mu}{d}$ is service rate (i.e. average number of customers served per hour; $d$ is average service units requested)
--   Given realized customers ( $\lambda$ ) and realized providers ( $k$ ), the utilization is $\frac{\lambda}{k \cdot (\mu / d)}$
+-   Given realized customers ( $\lambda$ ) and realized providers ( $k$ ), the utilization is $\frac{\lambda}{k \cdot (\mu / d)} = \frac{\lambda d}{k \mu}$
+    -   Aka $\rho = \frac{\lambda d}{k \mu}$ for $M/M/k$ queue
     -   Similar to typical queueing $\rho = \frac{\lambda}{\mu}$, but incorporating $k$ providers and $d$ average service units
--   Wage per unit time of provider is $w$
+-   Wage per unit time of a single provider is $w\mu$
+-   Average earning rate is $w\frac{\lambda d}{k}$
+    -   that is: single provider earning $w \mu$ times utilization $\frac{\lambda d}{k \mu}$
+    -   $w \mu \cdot \frac{\lambda d}{k \mu} = w\frac{\lambda d}{k}$
+-   Each provider has a "reservation earning rate" $r$ that has CDF $G(\cdot)$
+    -   i.e. they won't average earning rate $\ge$ than reservation rate (aka $w\frac{\lambda d}{k} \ge r$ )
+-   $\beta$ will denote proportion of providers partipating
+    -   $\beta = \text{Prob} \left\{ r \le w(\lambda d / k) \right\} = G \left( w(\lambda d / k) \right)$
+    -   Also: $G^{-1}(\beta) = w \frac{\lambda d}{k}$
+    -   This means realized providers $k$ is $k = \beta K$
+-   We can express wage rate $w$ as a function of participating providers $k$
+    -   $w = G^{-1}(\beta) \frac{k}{\lambda d} = G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}$
+
+## Objective: max profit
+
+-   Profit ( $\pi$ ) is $\pi = \lambda (p - w) d$
+    -   $\lambda$ - customer requests
+    -   $p$ - price rate per service unit
+    -   $w$ - wage rate per service unit
+    -   $d$ - average service units
+-   We can plug in the definitions of $p$ (in terms of service rate - $\lambda$) and $w$ (in terms of participating provider rate - $k$)
+    -   $\pi(k, \lambda) = \lambda d \left[ \left( F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q \right) - \left( G^{-1}(\frac{k}{K}) \frac{k}{\lambda d} \right) \right]$
+    -   Or written with $s$ to denote request rate and $\beta$ to denote provider participation rate: $\max_{k, \lambda} \pi(k, \lambda) \equiv \lambda d \left[ \left( F^{-1}\left(1 - s\right) - \frac{c}{d} W_q \right) - \left( G^{-1}(\beta) \frac{k}{\lambda d} \right) \right]$
+    -   Subject to $\frac{\lambda d}{k \mu} < 1$ (i.e. the requests don't outpace the service)
+        -   Note: maybe not a realistic constraint for peak event times, but maybe surge pricing and wait times can diminish request rate enough to hold
+-   We'll use $\pi(k, \lambda)$ to find optimal supply $k^*$ and optimal demand $\lambda^*$, and in turn we can use $k^*$ and $\lambda^*$ to find optimal price $p^*$ and optimal wage rate $w^*$
+
+## Base model
+
+-   Wage rate ( $w$ ) will be a proportion ( $\alpha$ ) of price rate ( $p$ ) - $w = \alpha p$
+
+-   Waiting time $W_q$ will be based on $M/M/k$ queue with arrival rate $\lambda$ and service rate $\frac{\mu}{d}$
+
+    -   $W_q = \frac{1}{1 + \left( \frac{k! (1 - \rho)}{k^k \rho^k} \right)
+        \sum_{i=0}^{k-1} \frac{k^i \rho^i}{i!}} \left[ \frac{\rho}{\lambda (1 - \rho)} \right]$
+    -   Where $\rho = \frac{\lambda d}{k \mu}$ is system utilization with $\rho < 1$
+
+-   For simplicity in based model, distribution of $v$ (so far referred to as $F(\cdot)$ ) and $r$ (so far referred to as $G(\cdot)$ ) will both be modeled as uniform on range $[0, 1]$.
+    This means we can drop out mention of them from current model.
+
+-   Updated formulation with $W_q$ and uniform dists on $[0, 1]$
+
+**STOPPING SPOT - To be continued...**
 
 # Slides
 

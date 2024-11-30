@@ -3209,13 +3209,112 @@ wage rate <span class="math inline">\(w\)</span> (wage as a percentage -
 <span class="math inline">\(\frac{\mu}{d}\)</span> is service rate
 (i.e. average number of customers served per hour; <span class="math inline">\(d\)</span> is average service units
 requested)</li>
-<li>Given realized customers ( <span class="math inline">\(\lambda\)</span> ) and realized providers ( <span class="math inline">\(k\)</span> ), the utilization is <span class="math inline">\(\frac{\lambda}{k \cdot (\mu / d)}\)</span>
+<li>Given realized customers ( <span class="math inline">\(\lambda\)</span> ) and realized providers ( <span class="math inline">\(k\)</span> ), the utilization is <span class="math inline">\(\frac{\lambda}{k \cdot (\mu / d)} = \frac{\lambda
+d}{k \mu}\)</span>
 <ul>
+<li>Aka <span class="math inline">\(\rho = \frac{\lambda d}{k
+\mu}\)</span> for <span class="math inline">\(M/M/k\)</span> queue</li>
 <li>Similar to typical queueing <span class="math inline">\(\rho =
 \frac{\lambda}{\mu}\)</span>, but incorporating <span class="math inline">\(k\)</span> providers and <span class="math inline">\(d\)</span> average service units</li>
 </ul></li>
-<li>Wage per unit time of provider is <span class="math inline">\(w\)</span></li>
+<li>Wage per unit time of a single provider is <span class="math inline">\(w\mu\)</span></li>
+<li>Average earning rate is <span class="math inline">\(w\frac{\lambda
+d}{k}\)</span>
+<ul>
+<li>that is: single provider earning <span class="math inline">\(w
+\mu\)</span> times utilization <span class="math inline">\(\frac{\lambda
+d}{k \mu}\)</span></li>
+<li><span class="math inline">\(w \mu \cdot \frac{\lambda d}{k \mu} =
+w\frac{\lambda d}{k}\)</span></li>
+</ul></li>
+<li>Each provider has a “reservation earning rate” <span class="math inline">\(r\)</span> that has CDF <span class="math inline">\(G(\cdot)\)</span>
+<ul>
+<li>i.e. they won’t average earning rate <span class="math inline">\(\ge\)</span> than reservation rate (aka <span class="math inline">\(w\frac{\lambda d}{k} \ge r\)</span> )</li>
+</ul></li>
+<li><span class="math inline">\(\beta\)</span> will denote proportion of
+providers partipating
+<ul>
+<li><span class="math inline">\(\beta = \text{Prob} \left\{ r \le
+w(\lambda d / k) \right\} = G \left( w(\lambda d / k)
+\right)\)</span></li>
+<li>Also: <span class="math inline">\(G^{-1}(\beta) = w \frac{\lambda
+d}{k}\)</span></li>
+<li>This means realized providers <span class="math inline">\(k\)</span>
+is <span class="math inline">\(k = \beta K\)</span></li>
+</ul></li>
+<li>We can express wage rate <span class="math inline">\(w\)</span> as a
+function of participating providers <span class="math inline">\(k\)</span>
+<ul>
+<li><span class="math inline">\(w = G^{-1}(\beta) \frac{k}{\lambda d} =
+G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}\)</span></li>
+</ul></li>
 </ul>
+</div>
+<div id="objective-max-profit" class="section level2">
+<h2>Objective: max profit</h2>
+<ul>
+<li>Profit ( <span class="math inline">\(\pi\)</span> ) is <span class="math inline">\(\pi = \lambda (p - w) d\)</span>
+<ul>
+<li><span class="math inline">\(\lambda\)</span> - customer
+requests</li>
+<li><span class="math inline">\(p\)</span> - price rate per service
+unit</li>
+<li><span class="math inline">\(w\)</span> - wage rate per service
+unit</li>
+<li><span class="math inline">\(d\)</span> - average service units</li>
+</ul></li>
+<li>We can plug in the definitions of <span class="math inline">\(p\)</span> (in terms of service rate - <span class="math inline">\(\lambda\)</span>) and <span class="math inline">\(w\)</span> (in terms of participating provider
+rate - <span class="math inline">\(k\)</span>)
+<ul>
+<li><span class="math inline">\(\pi(k, \lambda) = \lambda d \left[
+\left( F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right) -
+\frac{c}{d} W_q \right) - \left( G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}
+\right) \right]\)</span></li>
+<li>Or written with <span class="math inline">\(s\)</span> to denote
+request rate and <span class="math inline">\(\beta\)</span> to denote
+provider participation rate: <span class="math inline">\(\max_{k,
+\lambda} \pi(k, \lambda) \equiv \lambda d \left[ \left( F^{-1}\left(1 -
+s\right) - \frac{c}{d} W_q \right) - \left( G^{-1}(\beta)
+\frac{k}{\lambda d} \right) \right]\)</span></li>
+<li>Subject to <span class="math inline">\(\frac{\lambda d}{k \mu} &lt;
+1\)</span> (i.e. the requests don’t outpace the service)
+<ul>
+<li>Note: maybe not a realistic constraint for peak event times, but
+maybe surge pricing and wait times can diminish request rate enough to
+hold</li>
+</ul></li>
+</ul></li>
+<li>We’ll use <span class="math inline">\(\pi(k, \lambda)\)</span> to
+find optimal supply <span class="math inline">\(k^*\)</span> and optimal
+demand <span class="math inline">\(\lambda^*\)</span>, and in turn we
+can use <span class="math inline">\(k^*\)</span> and <span class="math inline">\(\lambda^*\)</span> to find optimal price <span class="math inline">\(p^*\)</span> and optimal wage rate <span class="math inline">\(w^*\)</span></li>
+</ul>
+</div>
+<div id="base-model" class="section level2">
+<h2>Base model</h2>
+<ul>
+<li><p>Wage rate ( <span class="math inline">\(w\)</span> ) will be a
+proportion ( <span class="math inline">\(\alpha\)</span> ) of price rate
+( <span class="math inline">\(p\)</span> ) - <span class="math inline">\(w = \alpha p\)</span></p></li>
+<li><p>Waiting time <span class="math inline">\(W_q\)</span> will be
+based on <span class="math inline">\(M/M/k\)</span> queue with arrival
+rate <span class="math inline">\(\lambda\)</span> and service rate <span class="math inline">\(\frac{\mu}{d}\)</span></p>
+<ul>
+<li><span class="math inline">\(W_q = \frac{1}{1 + \left( \frac{k! (1 -
+\rho)}{k^k \rho^k} \right)
+\sum_{i=0}^{k-1} \frac{k^i \rho^i}{i!}} \left[ \frac{\rho}{\lambda (1 -
+\rho)} \right]\)</span></li>
+<li>Where <span class="math inline">\(\rho = \frac{\lambda d}{k
+\mu}\)</span> is system utilization with <span class="math inline">\(\rho &lt; 1\)</span></li>
+</ul></li>
+<li><p>For simplicity in based model, distribution of <span class="math inline">\(v\)</span> (so far referred to as <span class="math inline">\(F(\cdot)\)</span> ) and <span class="math inline">\(r\)</span> (so far referred to as <span class="math inline">\(G(\cdot)\)</span> ) will both be modeled as
+uniform on range <span class="math inline">\([0, 1]\)</span>. This means
+we can drop out mention of them from current model.</p></li>
+<li><p>Updated formulation with <span class="math inline">\(W_q\)</span>
+and uniform dists on <span class="math inline">\([0,
+1]\)</span></p></li>
+</ul>
+<p><strong>STOPPING SPOT - To be continued…</strong></p>
 </div>
 </div>
 <div id="slides" class="section level1">
