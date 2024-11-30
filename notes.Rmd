@@ -1,0 +1,338 @@
+---
+title: "Coordinating on-demand service supply and demand paper notes"
+author: "Adam Spannbauer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    mathjax: "default"
+    code_folding: hide
+    df_print: paged
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 4
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(triangle)
+library(patchwork)
+
+plot_shaded_normal <- function(mean, sd, p = 0.5) {
+  shade_up_to_x <- qnorm(p, mean = mean, sd = sd)
+
+  data_normal <- data.frame(
+    x = seq(mean - 4 * sd, mean + 4 * sd, length.out = 300)
+  ) |>
+    mutate(y = dnorm(x, mean = mean, sd = sd))
+
+  shaded_data_normal <- data_normal |>
+    filter(x <= shade_up_to_x)
+
+  ggplot(data_normal, aes(x = x, y = y)) +
+    geom_line() +
+    geom_area(
+      data = shaded_data_normal,
+      aes(x = x, y = y),
+      fill = "#ff8800",
+      alpha = 0.3
+    ) +
+    geom_vline(xintercept = shade_up_to_x)
+}
+
+plot_shaded_triangle <- function(a, b, c = (a + b) / 2, p = 0.5) {
+  shade_up_to_x <- triangle::qtriangle(p, a = a, b = b, c = c)
+
+  data_tri <- data.frame(
+    x = seq(a, b, length.out = 300)
+  ) |>
+    mutate(y = triangle::dtriangle(x, a = a, b = b, c = c))
+
+  shaded_data_tri <- data_tri |>
+    filter(x <= shade_up_to_x)
+
+  ggplot(data_tri, aes(x = x, y = y)) +
+    geom_line() +
+    geom_area(
+      data = shaded_data_tri,
+      aes(x = x, y = y),
+      fill = "#ff8800",
+      alpha = 0.3
+    ) +
+    geom_vline(xintercept = shade_up_to_x)
+}
+
+```
+
+Reading paper:
+
+Bai, J., So, K. C., Tang, C. S., Chen, X., & Wang, H.
+(2019).
+Coordinating supply and demand on an on-demand service platform with impatient customers.
+Manufacturing & Service Operations Management, 21(3), 556-570.
+<https://doi.org/10.1287/msom.2018.0707>
+
+------------------------------------------------------------------------
+
+## General overview and goals
+
+-   Customers arrive randomly
+-   Each service consists of random amount of service units (e.g. travel distance)
+    -   Assumed any service can be rendered by any agent (maybe not true in reality where drivers cancel trips based on distance)
+-   Fixed price rate $p$ per service unit (e.g. dollars per kg)
+-   Fixed wage rate $w$ per service unit
+-   Payout ratio: $\frac{w}{p}$
+
+No focus on surge pricing for ease of modeling and cites customer dissatisfaction if price jumps in short time span.
+
+Assumed $p$ and $w$ are known to customers and agents in advance.
+
+Goal of service platform is to set $p^*$ and $w^*$ to maximize average profit.
+
+## Realized customer rate $\lambda$ and price rate $p$
+
+### Setup
+
+-   Let $\lambda$ be the customer request rate with max amount of service in a time period is $\bar{\lambda}$
+
+-   Customer value per service unit is $v$ (heterogeneous with CDF $F(\cdot)$)
+
+-   For a customer with valuation $v$ and service request of $D$ units the surplus is $(v - p)D$
+
+    -   $D$ is assumed to be independent of customer-type $v$
+
+    -   expected value of service units will be modeled as $d = E(D)$
+
+-   Utility function of a customer can be modeled as $U(v) = (v - p)d - cW_q$
+
+    -   $v$ is value per service unit
+
+    -   $p$ is price per service unit
+
+    -   $d$ is expected value of service units
+
+    -   $c$ is cost of waiting
+
+    -   $W_q$ is expected wait time for service
+
+-   Realized customer request rate $\lambda$ is the percent of $\bar{\lambda}$ of customers who have $U(v) \ge 0$ for a given $p$
+
+    -   aka $\lambda = \text{Prob} \left\{ U(v) \ge 0 \right\} \cdot \bar{\lambda} \to \lambda = \text{Prob} \left\{ v \ge p + \frac{c}{d} W_q \right\} \cdot \bar{\lambda}$
+
+    -   steps
+
+        -   $(v-p)d-cW_q \ge 0$
+
+        -   $vd-pd-cW_q \ge 0$
+
+        -   $vd \ge pd-cW_q$
+
+        -   $v \ge p - \frac{c}{d}W_q$
+
+-   This probability is labeled $s$ (i.e. $s = \text{Prob} \left\{ v \ge p + \frac{c}{d} W_q \right\}$ and $\lambda = s \bar{\lambda}$) and represents the desired service rate.
+    We can manipulate $p$ to decide what percentage of $\bar{\lambda}$ to target
+
+-   Since $v \sim F(\cdot)$ then the price rate satisfies $p = F^{-1} \left( 1 - \frac{\lambda}{\bar{\lambda}} \right) - \frac{c}{d} W_q$ (note this could be written $p = F^{-1} \left( 1 - s \right) - \frac{c}{d} W_q$ to show service rate more directly)
+
+    -   Steps
+
+        -   $\lambda = \text{Prob} \left\{ v \ge p + \frac{c}{d} W_q \right\} \cdot \bar{\lambda}$
+
+        -   $\lambda = \left[ 1 - F\left( p + \frac{c}{d} W_q \right) \right] \cdot \bar{\lambda}$
+
+        -   $\frac{\lambda}{\bar{\lambda}} = 1 - F\left( p + \frac{c}{d} W_q \right)$
+
+        -   $F\left( p + \frac{c}{d} W_q \right) = 1 - \frac{\lambda}{\bar{\lambda}}$
+
+        -   $p + \frac{c}{d} W_q = F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right)$
+
+        -   $p = F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q$ or $p = F^{-1}\left(1 - s\right) - \frac{c}{d} W_q$
+
+    -   Holding everything else constant
+
+        -   Price rate decreases as wait time ( $W_q$ ) increases
+
+        -   Price rate decreases as unit wait cost ( $c$ ) increases
+
+        -   Price rate increases as number of service units ( $d$ ) increases
+
+### Final results
+
+For a given service rate ( $s$ ), wait time ( $W_q$ ), expected service units ( $d$ ), cost of wait per unit time ( $c$ ), & distribution of $v$ ( $v \sim F(\cdot)$ ) we can prescribe a price to obtain $s$:
+
+$$
+p = F^{-1}\left(1 - s\right) - \frac{c}{d} W_q
+$$
+
+Customers assign different values ( $v$ ) for the service per unit.
+$v \sim F( \cdot )$.
+Exploring normal and triangle distributions for ease.
+Likely a right skewed distribution in practice, but perhaps those out in the tail of the a heavy right skewed dist are out of the customer base for these on demand services.
+
+```{r}
+# Price rate as a function of service level
+price_rate <- function(s, c, d, Wq, Finv) {
+  Finv(1 - s) - (c / d) * Wq
+}
+```
+
+#### How price varies with individual params
+
+Holding all other factors constant and just manipulating the input shown on x axis.
+
+Service level $s$ is not plotted, but as desired service level is increases, the prescribed price decreases (make cheaper to get more of market; make more expensive to out price parts of market).
+
+These relationships are the similar in behavior regardless of choice of value distribution family ( $F(\cdot)$ ).
+
+```{r  fig.height=3, fig.align="center"}
+ex_range <- 0:10
+
+s <- 0.5
+c <- 2
+d <- 2
+Wq <- 2
+
+# value dist (normal) params
+mu <- 5
+sd <- 1
+Finv <- \(p) qnorm(p = p, mean = mu, sd = sd)
+
+ex_c <- price_rate(s, ex_range, d, Wq, Finv)
+ex_d <- price_rate(s, c, ex_range, Wq, Finv)
+ex_Wq <- price_rate(s, c, d, ex_range, Finv)
+
+func_behavior_df <- data.frame(
+  ex_range = ex_range,
+  c = ex_c,
+  d = ex_d,
+  Wq = ex_Wq
+)
+
+func_behavior_df |>
+  pivot_longer(-ex_range) |>
+  mutate(name = ifelse(name == "c", "Cost of waiting (c)", name)) |>
+  mutate(name = ifelse(name == "d", "Average service units (d)", name)) |>
+  mutate(name = ifelse(name == "Wq", "Wait time (Wq)", name)) |>
+  ggplot(aes(x = ex_range, y = value)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  facet_wrap(~name) +
+  scale_x_continuous(breaks = seq(0, 10, 2)) +
+  labs(
+    y = "price", x = "",
+    title = bquote("Behavior of price with inputs; " ~
+      p == F^
+        {
+          -1
+        } * (1 - s) - frac(c, d) * W[q]),
+    subtitle = "Holding all other factors constant & service level (s) = 0.5"
+  )
+```
+
+#### Triangle distribution of value $v \sim F_{triangle}(\cdot)$
+
+```{r fig.height=3, fig.align="center"}
+c <- 2
+d <- 2
+Wq <- 2
+
+# value dist (triangle) params
+a <- 1
+b <- 10
+c <- 2
+Finv <- \(p) qtriangle(p = p, a = a, b = b, c = c)
+
+s <- 0.2
+p1 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      s * 100, price_rate(s, c, d, Wq, Finv)
+    ),
+    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8)
+  )
+
+
+s <- 0.6
+p2 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      s * 100, price_rate(s, c, d, Wq, Finv)
+    ),
+    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8)
+  )
+
+
+p1 + p2
+```
+
+#### Normal distribution of value $v \sim F_{normal}(\cdot)$
+
+```{r fig.height=3, fig.align="center"}
+c <- 2
+d <- 2
+Wq <- 2
+
+# value dist (normal) params
+mu <- 5
+sd <- 1
+Finv <- \(p) qnorm(p = p, mean = mu, sd = sd)
+
+s <- 0.3
+p1 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      s * 100, price_rate(s, c, d, Wq, Finv)
+    ),
+    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10), # Shrink title font size
+    plot.subtitle = element_text(size = 8) # Shrink subtitle font size
+  )
+
+s <- 0.8
+p2 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      s * 100, price_rate(s, c, d, Wq, Finv)
+    ),
+    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8)
+  )
+
+p1 + p2
+```
+
+## Realized providers $k$ and wage rate $w$
+
+-   $K$ - maximum number of potential providers
+-   $k$ - realized number of providers for a given price $p$ and wage rate $w$ (wage as a percentage - $\alpha$ - of $p$)
+    -   $k \le K$
+-   $\mu$ - average service speed; so $\frac{\mu}{d}$ is service rate (i.e. average number of customers served per hour; $d$ is average service units requested)
+-   Given realized customers ( $\lambda$ ) and realized providers ( $k$ ), the utilization is $\frac{\lambda}{k \cdot (\mu / d)}$
+    -   Similar to typical queueing $\rho = \frac{\lambda}{\mu}$, but incorporating $k$ providers and $d$ average service units
+-   Wage per unit time of provider is $w$
+
