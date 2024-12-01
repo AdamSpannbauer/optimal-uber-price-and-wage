@@ -62,6 +62,27 @@ plot_shaded_triangle <- function(a, b, c = (a + b) / 2, p = 0.5) {
     geom_vline(xintercept = shade_up_to_x)
 }
 
+plot_shaded_unif <- function(a = 0, b = 1, p = 0.5) {
+  shade_up_to_x <- qunif(p, min = a, max = b)
+
+  data_unif <- data.frame(
+    x = seq(a, b, length.out = 300)
+  ) |>
+    mutate(y = dunif(x, min = a, max = b))
+
+  shaded_data_unif <- data_unif |>
+    filter(x <= shade_up_to_x)
+
+  ggplot(data_unif, aes(x = x, y = y)) +
+    geom_line() +
+    geom_area(
+      data = shaded_data_unif,
+      aes(x = x, y = y),
+      fill = "#ff8800",
+      alpha = 0.3
+    ) +
+    geom_vline(xintercept = shade_up_to_x)
+}
 ```
 
 Reading paper:
@@ -160,20 +181,26 @@ Goal of service platform is to set $p^*$ and $w^*$ to maximize average profit.
 
 ### Final results
 
-For a given service rate ( $s$ ), wait time ( $W_q$ ), expected service units ( $d$ ), cost of wait per unit time ( $c$ ), & distribution of $v$ ( $v \sim F(\cdot)$ ) we can prescribe a price to obtain $s$:
+Price is prescribed as:
 
 $$
-p = F^{-1}\left(1 - s\right) - \frac{c}{d} W_q
+p = F^{-1}\left(1 - s\right) - \frac{c}{d} W_q = F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q
 $$
 
-Customers assign different values ( $v$ ) for the service per unit.
-$v \sim F( \cdot )$.
-Exploring normal and triangle distributions for ease.
-Likely a right skewed distribution in practice, but perhaps those out in the tail of the a heavy right skewed dist are out of the customer base for these on demand services.
+For given
+
+-   Service rate ( $s = \frac{\lambda}{\bar{\lambda}}$ )
+    -   $\lambda$ is requesting customers
+    -   $\bar{\lambda}$ is max potential requesting customers
+-   Wait time ( $W_q$ )
+-   Expected service units ( $d$ )
+-   Cost of wait per unit time ( $c$ )
+-   Inverse CDF of customer valuation of service per unit ( $v \sim F(\cdot)$ )
 
 ```{r}
 # Price rate as a function of service level
-price_rate <- function(s, c, d, Wq, Finv) {
+price_rate <- function(lambda, lambda_bar, c, d, Wq, Finv = \(p) qunif(p = p, min = 0, max = 1)) {
+  s <- lambda / lambda_bar
   Finv(1 - s) - (c / d) * Wq
 }
 ```
@@ -182,29 +209,37 @@ price_rate <- function(s, c, d, Wq, Finv) {
 
 Holding all other factors constant and just manipulating the input shown on x axis.
 
-Service level $s$ is not plotted, but as desired service level is increases, the prescribed price decreases (make cheaper to get more of market; make more expensive to out price parts of market).
-
 These relationships are the similar in behavior regardless of choice of value distribution family ( $F(\cdot)$ ).
+
+-   If $c$ increases (and target service rate is the same), we charge less since the cost of waiting per unit of service $\frac{c}{d}$ increases (if we kept same price we would be over priced and we'd be below target service)
+-   If $d$ increases (and target service rate is the same), we charge more since the cost of waiting per unit of service $\frac{c}{d}$ decreases (if we kept same price we would be under priced and we'd be above target service rate)
+-   If $\lambda$ increases (aka target service rate increases), we charge less to mitigate the effects of waiting while maintaining value
+-   If $W_q$ increases, we charge less to mitigate the effects of waiting while maintaining value
+
+These notes don't reflect how $\lambda$ and $W_q$ are related (i.e. more requests would lead to more wait time assuming the same supply).
 
 ```{r  fig.height=3, fig.align="center"}
 ex_range <- 0:10
 
-s <- 0.5
+lambda_bar <- 10
+
+lambda <- 2
 c <- 2
 d <- 2
 Wq <- 2
 
-# value dist (normal) params
-mu <- 5
-sd <- 1
-Finv <- \(p) qnorm(p = p, mean = mu, sd = sd)
+# value dist
+Finv <- \(p) qunif(p = p, min = 0, max = 1)
 
-ex_c <- price_rate(s, ex_range, d, Wq, Finv)
-ex_d <- price_rate(s, c, ex_range, Wq, Finv)
-ex_Wq <- price_rate(s, c, d, ex_range, Finv)
+
+ex_lambda <- price_rate(ex_range, lambda_bar, ex_range, d, Wq, Finv)
+ex_c <- price_rate(lambda, lambda_bar, ex_range, d, Wq, Finv)
+ex_d <- price_rate(lambda, lambda_bar, c, ex_range, Wq, Finv)
+ex_Wq <- price_rate(lambda, lambda_bar, c, d, ex_range, Finv)
 
 func_behavior_df <- data.frame(
   ex_range = ex_range,
+  lambda = ex_lambda,
   c = ex_c,
   d = ex_d,
   Wq = ex_Wq
@@ -215,41 +250,46 @@ func_behavior_df |>
   mutate(name = ifelse(name == "c", "Cost of waiting (c)", name)) |>
   mutate(name = ifelse(name == "d", "Average service units (d)", name)) |>
   mutate(name = ifelse(name == "Wq", "Wait time (Wq)", name)) |>
+  mutate(name = ifelse(name == "lambda", "Customer requests (lambda)", name)) |>
   ggplot(aes(x = ex_range, y = value)) +
   geom_line() +
-  geom_hline(yintercept = 0, linetype = "dotted") +
+  # geom_hline(yintercept = 0, linetype = "dotted") +
   facet_wrap(~name) +
   scale_x_continuous(breaks = seq(0, 10, 2)) +
+  theme(
+    axis.text.y = element_blank(), axis.ticks.y = element_blank()
+  ) +
   labs(
     y = "price", x = "",
     title = bquote("Behavior of price with inputs; " ~
       p == F^
         {
           -1
-        } * (1 - s) - frac(c, d) * W[q]),
-    subtitle = "Holding all other factors constant & service level (s) = 0.5"
+        } * (1 - lambda / bar(lambda) - frac(c, d) * W[q])),
+    subtitle = bquote("Holding all other factors constant arbitrarily at 2 & " ~ bar(lambda) == 10)
   )
 ```
 
-#### Triangle distribution of value $v \sim F_{triangle}(\cdot)$
+#### Uniform distribution of value $v \sim F_{unif_{[0, 1]}}(\cdot)$
+
+The paper will use a uniform distribution $[0, 1]$ to simplify analysis but insights extend to other families
 
 ```{r fig.height=3, fig.align="center"}
 c <- 2
 d <- 2
 Wq <- 2
 
-# value dist (triangle) params
-a <- 1
-b <- 10
-c <- 2
-Finv <- \(p) qtriangle(p = p, a = a, b = b, c = c)
+# value dist (unifo) params
+Finv <- \(p) qunif(p = p, min = 0, max = 1)
 
-s <- 0.2
-p1 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
+lambda <- 2
+lambda_bar <- 10
+s <- lambda / lambda_bar
+p1 <- plot_shaded_unif(a = 0, b = 1, p = s) +
   labs(
     title = sprintf(
       "For service level %.0f%% -> price = %.2f ",
-      s * 100, price_rate(s, c, d, Wq, Finv)
+      s * 100, price_rate(lambda, lambda_bar, c, d, Wq, Finv)
     ),
     subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
     x = "v",
@@ -257,16 +297,20 @@ p1 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
   ) +
   theme(
     plot.title = element_text(size = 10),
-    plot.subtitle = element_text(size = 8)
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
   )
 
 
-s <- 0.6
-p2 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
+lambda <- 6
+lambda_bar <- 10
+s <- lambda / lambda_bar
+p2 <- plot_shaded_unif(a = 0, b = 1, p = s) +
   labs(
     title = sprintf(
       "For service level %.0f%% -> price = %.2f ",
-      s * 100, price_rate(s, c, d, Wq, Finv)
+      s * 100, price_rate(lambda, lambda_bar, c, d, Wq, Finv)
     ),
     subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
     x = "v",
@@ -274,7 +318,9 @@ p2 <- plot_shaded_triangle(a = a, b = b, c = c, p = s) +
   ) +
   theme(
     plot.title = element_text(size = 10),
-    plot.subtitle = element_text(size = 8)
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
   )
 
 
@@ -293,28 +339,14 @@ mu <- 5
 sd <- 1
 Finv <- \(p) qnorm(p = p, mean = mu, sd = sd)
 
-s <- 0.3
+lambda <- 3
+lambda_bar <- 10
+s <- lambda / lambda_bar
 p1 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
   labs(
     title = sprintf(
       "For service level %.0f%% -> price = %.2f ",
-      s * 100, price_rate(s, c, d, Wq, Finv)
-    ),
-    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
-    x = "v",
-    y = ""
-  ) +
-  theme(
-    plot.title = element_text(size = 10), # Shrink title font size
-    plot.subtitle = element_text(size = 8) # Shrink subtitle font size
-  )
-
-s <- 0.8
-p2 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
-  labs(
-    title = sprintf(
-      "For service level %.0f%% -> price = %.2f ",
-      s * 100, price_rate(s, c, d, Wq, Finv)
+      s * 100, price_rate(lambda, lambda_bar, c, d, Wq, Finv)
     ),
     subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
     x = "v",
@@ -322,13 +354,37 @@ p2 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
   ) +
   theme(
     plot.title = element_text(size = 10),
-    plot.subtitle = element_text(size = 8)
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+lambda <- 8
+lambda_bar <- 10
+s <- lambda / lambda_bar
+p2 <- plot_shaded_normal(mean = mu, sd = sd, p = s) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      s * 100, price_rate(lambda, lambda_bar, c, d, Wq, Finv)
+    ),
+    subtitle = sprintf("Given c = %.1f; d = %.1f, Wq = %.1f", c, d, Wq),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
   )
 
 p1 + p2
 ```
 
 ## Realized providers $k$ and wage rate $w$
+
+### Setup
 
 -   $K$ - maximum number of potential providers
 -   $k$ - realized number of providers for a given price $p$ and wage rate $w$ (wage as a percentage - $\alpha$ - of $p$)
@@ -347,8 +403,143 @@ p1 + p2
     -   $\beta = \text{Prob} \left\{ r \le w(\lambda d / k) \right\} = G \left( w(\lambda d / k) \right)$
     -   Also: $G^{-1}(\beta) = w \frac{\lambda d}{k}$
     -   This means realized providers $k$ is $k = \beta K$
--   We can express wage rate $w$ as a function of participating providers $k$
-    -   $w = G^{-1}(\beta) \frac{k}{\lambda d} = G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}$
+
+### Final results
+
+Wage is prescribed as:
+
+$$
+w = G^{-1}(\beta) \frac{k}{\lambda d} = G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}
+$$
+
+For given
+
+-   Participation rate ( $\beta = \frac{k}{K}$ )
+    -   $k$ is participating providers
+    -   $K$ is max potential participating providers
+-   Expected service units ( $d$ )
+-   Number of requesting customers ( $\lambda$ )
+-   Inverse CDF of provider reservation rate ( $r \sim G(\cdot)$ )
+
+```{r}
+# Wage rate as a function of provider participation rate
+wage_rate <- function(k, K, lambda, d, Ginv = \(p) qunif(p = p, min = 0, max = 1)) {
+  Ginv(k / K) * (k / (lambda * d))
+}
+```
+
+#### How wage varies with individual params
+
+Holding all other factors constant and just manipulating the input shown on x axis.
+
+These relationships are the similar in behavior regardless of choice of reservation rate distribution family ( $G(\cdot)$ ).
+
+-   If $\lambda$ increases (and target participation rate is the same), we pay less since the average utilization of providers increases (more fares to go around)
+-   If $d$ increases (and target participation rate is the same), we pay less since the pay out per fare increases (more units of pay)
+-   If $k$ increases (aka target participation rate increases), we need to pay more to incentivize providers to enter
+
+```{r  fig.height=3, fig.align="center"}
+ex_range <- 0:10
+
+K <- 10
+
+k <- 2
+lambda <- 2
+d <- 2
+
+# reservation rate dist
+Ginv <- \(p) qunif(p = p, min = 0, max = 1)
+
+ex_k <- wage_rate(ex_range, K, lambda, d, Ginv)
+ex_lambda <- wage_rate(k, K, ex_range, d, Ginv)
+ex_d <- wage_rate(k, K, lambda, ex_range, Ginv)
+
+func_behavior_df <- data.frame(
+  ex_range = ex_range,
+  k = ex_k,
+  lambda = ex_lambda,
+  d = ex_d
+)
+
+func_behavior_df |>
+  pivot_longer(-ex_range) |>
+  mutate(name = ifelse(name == "k", "Pariticpating providers (k)", name)) |>
+  mutate(name = ifelse(name == "d", "Average service units (d)", name)) |>
+  mutate(name = ifelse(name == "lambda", "Customer requests (lambda)", name)) |>
+  ggplot(aes(x = ex_range, y = value)) +
+  geom_line() +
+  # geom_hline(yintercept = 0, linetype = "dotted") +
+  facet_wrap(~name) +
+  scale_x_continuous(breaks = seq(0, 10, 2)) +
+  theme(
+    axis.text.y = element_blank(), axis.ticks.y = element_blank()
+  ) +
+  labs(
+    y = "wage", x = "",
+    title = bquote("Behavior of wage with inputs; " ~
+      w == G^
+        {
+          -1
+        } * (frac(k, K)) * frac(k, lambda * d)),
+    subtitle = bquote("Holding all other factors constant arbitrarily at 2 & " ~ K == 10)
+  )
+```
+
+#### Uniform distribution of value $r \sim G_{unif_{[0, 1]}}(\cdot)$
+
+The paper will use a uniform distribution $[0, 1]$ to simplify analysis but insights extend to other families
+
+```{r fig.height=3, fig.align="center"}
+lambda <- 2
+d <- 2
+
+# value dist (unifo) params
+Ginv <- \(p) qunif(p = p, min = 0, max = 1)
+
+k <- 2
+K <- 10
+beta <- k / K
+p1 <- plot_shaded_unif(a = 0, b = 1, p = beta) +
+  labs(
+    title = sprintf(
+      "For partipication level %.0f%% -> wage = %.2f ",
+      beta * 100, wage_rate(k, K, lambda, d, Ginv)
+    ),
+    subtitle = sprintf("Given lambda = %.1f; d = %.1f", lambda, d),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+
+k <- 8
+K <- 10
+beta <- k / K
+p2 <- plot_shaded_unif(a = 0, b = 1, p = beta) +
+  labs(
+    title = sprintf(
+      "For service level %.0f%% -> price = %.2f ",
+      beta * 100, wage_rate(k, K, lambda, d, Ginv)
+    ),
+    subtitle = sprintf("Given lambda = %.1f; d = %.1f", lambda, d),
+    x = "v",
+    y = ""
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 8),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+
+p1 + p2
+```
 
 ## Objective: max profit
 
@@ -374,12 +565,303 @@ p1 + p2
         \sum_{i=0}^{k-1} \frac{k^i \rho^i}{i!}} \left[ \frac{\rho}{\lambda (1 - \rho)} \right]$
     -   Where $\rho = \frac{\lambda d}{k \mu}$ is system utilization with $\rho < 1$
 
--   For simplicity in based model, distribution of $v$ (so far referred to as $F(\cdot)$ ) and $r$ (so far referred to as $G(\cdot)$ ) will both be modeled as uniform on range $[0, 1]$.
-    This means we can drop out mention of them from current model.
+-   For simplicity in base model:
 
--   Updated formulation with $W_q$ and uniform dists on $[0, 1]$
+    -   The distribution of $v$ (so far referred to as $F(\cdot)$ ) and $r$ (so far referred to as $G(\cdot)$ ) will both be modeled as uniform on range $[0, 1]$.
+        This means we can drop out mention of them from current model.
 
-**STOPPING SPOT - To be continued...**
+        -   $p = F^{-1}\left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q$ becomes $p = \left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q$
+
+        -   $w = G^{-1}(\frac{k}{K}) \frac{k}{\lambda d}$ becomes $w = \frac{k}{K} \cdot \frac{k}{\lambda d} = \frac{k^2}{K \lambda d}$
+
+        -   $\max_{k, \lambda} \pi(k, \lambda) = \lambda d (p - w) = \lambda d \left[ \left( F^{-1}\left(1 - s\right) - \frac{c}{d} W_q \right) - \left( G^{-1}(\beta) \frac{k}{\lambda d} \right) \right]$ becomes $\max_{k, \lambda} \pi(k, \lambda) = \lambda d (p - w) = \lambda d \left[ \left( \left(1 - s \right) - \frac{c}{d} W_q \right) - \left( \frac{k^2}{K \lambda d} \right) \right]$
+
+    -   Wage rate is $\alpha$ proportion of $p$ : $w = \alpha p \to \frac{w}{\alpha} = p$ ; avoid direct $p$ formulation since it becomes way messier when incorporating Wait time formulation
+
+        -   $\max_{k, \lambda} \pi(k, \lambda) = \lambda d (p - w) = \lambda d \left( \frac{w}{\alpha} - w \right)$
+
+        -   Incorporating definition of $w = \frac{k^2}{K \lambda d}$ we can write as $\max_{k, \lambda} \pi(k, \lambda) = \lambda d \left( \frac{k^2}{K \lambda d \alpha} - \frac{k^2}{K \lambda d} \right) = \frac{k^2}{K \alpha} - \frac{k^2}{K} = \frac{k^2 - k^2 \alpha}{K \alpha} = \frac{k^2 (1 - \alpha)}{K \alpha}$
+
+        -   Pretty clear to see we want to maximize number of participating providers $k$
+
+    -   This is subject to constraints
+
+        -   $\frac{\lambda d}{k \mu} < 1$
+
+        -   $w = \alpha p$ which can be written as (still avoiding writing out $W_q$ here; see def above)
+
+            -   $\frac{k^2}{K \lambda d} = \alpha \left[ \left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q \right]$
+
+            -   This implies $k^2 = {K \lambda d}\alpha \left[ \left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q \right]$
+
+```{r}
+exact_wait_time_ <- function(k, lambda, mu, d) {
+  # $$
+  # W_q = \frac{1}{1 + \left( \frac{k! (1 - \rho)}{k^k \rho^k} \right) \sum_{i=0}^{k-1} \frac{k^i \rho^i}{i!}} \left[ \frac{\rho}{\lambda (1 - \rho)} \right]
+  # $$
+
+  # Calculate rho (system utilization)
+  rho <- (lambda * d) / (k * mu)
+  stopifnot(rho < 1)
+
+  # First fraction term
+  # ... Denominator term 1
+  ## scalar to adjust probs of term 2
+  term1 <- (factorial(k) * (1 - rho)) / (k^k * rho^k)
+
+  # ... Denominator term 2
+  ## each term in summation is prob of i servers busy
+  i <- 0:(k - 1)
+  term2 <- sum((k^i * rho^i) / factorial(i))
+
+  # Full formula for Wq
+  wait_time <- 1 / (1 + term1 * term2) * (rho / (lambda * (1 - rho)))
+  return(wait_time)
+}
+
+exact_wait_time <- Vectorize(exact_wait_time_, c("k", "lambda", "mu", "d"))
+
+check_rho_constraint <- function(lambda, d, k, mu) {
+  rho <- (lambda * d) / (k * mu)
+
+  return(rho < 1)
+}
+
+check_fixed_payout_constraint <- function(k, K, lambda, lambda_bar, c, d, mu, alpha, tolerance = 0.01) {
+  v1 <- k^2
+
+  Wq <- exact_wait_time(k, lambda, mu, d)
+  v2 <- K * lambda * d * alpha * ((1 - (lambda / lambda_bar)) - (c / d) * Wq)
+
+  return(isTRUE(all.equal(v1, v2, tolerance = tolerance)))
+}
+
+profit_function <- function(k, K, lambda, lambda_bar, c, d, mu, alpha) {
+  meets_rho_constraint <- check_rho_constraint(lambda, d, k, mu)
+
+  if (!meets_rho_constraint) {
+    return(list(
+      meets_rho_constraint = FALSE,
+      meets_fixed_payout_constraint = FALSE
+    ))
+  }
+
+  meets_fixed_payout_constraint <- check_fixed_payout_constraint(k, K, lambda, lambda_bar, c, d, mu, alpha)
+
+  if (!meets_fixed_payout_constraint) {
+    return(list(
+      meets_rho_constraint = TRUE,
+      meets_fixed_payout_constraint = FALSE
+    ))
+  }
+
+  Wq <- exact_wait_time(k, lambda, mu, d)
+
+  price <- price_rate(lambda, lambda_bar, c, d, Wq)
+  wage <- wage_rate(k, K, lambda, d)
+
+  profit <- (k^2 * (1 - alpha)) / (K * alpha)
+
+  list(
+    k = k,
+    K = K,
+    lambda = lambda,
+    lambda_bar = lambda_bar,
+    c = c,
+    d = d,
+    mu = mu,
+    rho = (lambda * d) / (k * mu),
+    alpha = alpha,
+    Wq = Wq,
+    price = price,
+    wage = wage,
+    profit = profit,
+    meets_rho_constraint = meets_rho_constraint,
+    meets_fixed_payout_constraint = meets_fixed_payout_constraint
+  )
+}
+
+display_results <- function(res) {
+  display_res <- res[c("k", "K", "lambda", "lambda_bar", "rho", "Wq", "price", "wage", "alpha", "profit")]
+
+  display_res |>
+    as.data.frame() |>
+    t() |>
+    as.data.frame() |>
+    rownames_to_column() |>
+    set_names(c("Param", "Value")) |>
+    mutate(Value = as.numeric(sprintf("%.2f", Value)))
+}
+```
+
+Here is the results for row 1 of Table 1 to show my formulation matches.
+
+```{r}
+res <- profit_function(k = 7, K = 50, lambda = 2.71, lambda_bar = 10, c = 1, d = 1, mu = 1, alpha = 0.5)
+
+display_results(res)
+```
+
+Interestingly, and unreported by the paper.
+This is not a unique solution.
+There Table 1 seems to prefer a solution with higher price and lower wait times.
+
+```{r}
+res <- profit_function(k = 7, K = 50, lambda = 4.73, lambda_bar = 10, c = 1, d = 1, mu = 1, alpha = 0.5)
+
+display_results(res)
+```
+
+### Examples searching for max profit
+
+My formulation matches paper results, but to save time I've used a lower precision.
+Because of this, my optimal values for lambda will be off from paper table by decimal amounts.
+
+```{r}
+find_optimal_k_and_lambda <- function(
+    K, lambda_bar, c, d, mu, alpha,
+    prefer_smaller_price = TRUE,
+    lambda_tol = 0.01) {
+  best_outcome <- NULL
+
+  possible_k <- 1:K
+  possible_lambda <- seq(lambda_tol, k, by = lambda_tol)
+
+
+  if (interactive()) {
+    n_iter <- length(possible_k) * length(possible_lambda)
+    pb <- txtProgressBar(min = 0, max = n_iter, style = 3)
+    progress <- 0
+  }
+
+  for (k in 1:K) {
+    for (lambda in possible_lambda) {
+      res <- profit_function(
+        k = k, K = K,
+        lambda = lambda, lambda_bar = lambda_bar,
+        c = c, d = d,
+        mu = mu,
+        alpha = alpha
+      )
+
+      if (res$meets_rho_constraint & res$meets_fixed_payout_constraint) {
+        if (is.null(best_outcome)) {
+          best_outcome <- res
+          next
+        }
+
+        if (res$profit > best_outcome$profit) {
+          best_outcome <- res
+          next
+        }
+
+        # if profit is tied with best (within a tolerance)
+        if (isTRUE(all.equal(res$profit, best_outcome$profit, tolerance = 0.001))) {
+          if (prefer_smaller_price & res$price < best_outcome$price) {
+            best_outcome <- res
+          } else if (!prefer_smaller_price & res$price > best_outcome$price) {
+            best_outcome <- res
+          }
+        }
+      }
+
+      if (interactive()) {
+        progress <- progress + 1
+        setTxtProgressBar(pb, progress)
+      }
+    }
+  }
+
+  if (interactive()) {
+    close(pb)
+  }
+  return(best_outcome)
+}
+```
+
+Here is the results for row 1 of Table 1 to show my formulation can find the same solution, but with a lack of precision.
+
+```{r}
+res <- find_optimal_k_and_lambda(
+  K = 50,
+  lambda_bar = 10,
+  c = 1,
+  d = 1,
+  mu = 1,
+  alpha = 0.5,
+  prefer_smaller_price = FALSE
+)
+
+display_results(res)
+```
+
+```{r}
+res <- find_optimal_k_and_lambda(
+  K = 50,
+  lambda_bar = 10,
+  c = 1,
+  d = 1,
+  mu = 1,
+  alpha = 0.5,
+  prefer_smaller_price = TRUE
+)
+
+display_results(res)
+```
+
+-   To approximate and give tractable analytical results can instead be approximated with $W_q = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }$
+
+    -   The approximation formula is exact for an $M/M/1$ queue (i.e. plug $k = 1$ into above complex form and it reduces to $W_q = \frac{ \rho ^ 2 }{ \lambda (1 - \rho) } = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }$ )
+    -   The approximation has been shown (see Sakasegawa 1977) to provide a very good estimate when $k > 1$ .
+
+```{r}
+approx_wait_time_ <- function(k, lambda, mu, d) {
+  # $$
+  # W_q = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }
+  # $$
+
+  # Calculate rho (system utilization)
+  rho <- (lambda * d) / (k * mu)
+
+  # numerator shows traffic intensity - for large k, less sensitive to traffic
+  # denominator combines arrival rate and idle capacity
+  # to show traffic that can be handled without queueing
+  wait_time <- (rho^sqrt(2 * (k + 1))) / (lambda * (1 - rho))
+  return(wait_time)
+}
+
+approx_wait_time <- Vectorize(approx_wait_time_, c("k", "lambda", "mu", "d"))
+```
+
+```{r fig.height=3, fig.align="center"}
+k <- 1:50
+
+lambda <- 4
+mu <- 16
+d <- 2
+
+wait_time_compare <- data.frame(
+  k = k,
+  Exact = exact_wait_time(k, lambda, mu, d),
+  Approx = approx_wait_time(k, lambda, mu, d)
+) |>
+  pivot_longer(-k, names_to = "Formula") |>
+  mutate(`log(Wait time)` = log(value)) |>
+  rename(`Wait time` = value) |>
+  pivot_longer(contains("Wait"), names_to = "trans") |>
+  mutate(trans = forcats::fct_rev(trans), Formula = forcats::fct_rev(Formula))
+
+ggplot(wait_time_compare, aes(x = k, y = value, color = Formula, linetype = Formula)) +
+  geom_line() +
+  facet_wrap(~trans, scales = "free_y") +
+  labs(
+    title = "Comparison of Approx and Exact M/M/k wait time formulas",
+    subtitle = bquote(lambda == .(lambda) ~ ", " ~
+      mu == .(mu) ~ ", " ~
+      d == .(d) ~ " --> " ~
+      rho == frac(lambda * d, k * mu) ~ ">=" ~ 1)
+  )
+```
 
 # Slides
 
