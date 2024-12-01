@@ -690,7 +690,7 @@ display_results <- function(res) {
     as.data.frame() |>
     rownames_to_column() |>
     set_names(c("Param", "Value")) |>
-    mutate(Value = as.numeric(sprintf("%.2f", Value)))
+    mutate(Value = as.numeric(sprintf("%.3f", Value)))
 }
 ```
 
