@@ -524,7 +524,7 @@ beta <- k / K
 p2 <- plot_shaded_unif(a = 0, b = 1, p = beta) +
   labs(
     title = sprintf(
-      "For service level %.0f%% -> price = %.2f ",
+      "For service level %.0f%% -> wage = %.2f ",
       beta * 100, wage_rate(k, K, lambda, d, Ginv)
     ),
     subtitle = sprintf("Given lambda = %.1f; d = %.1f", lambda, d),
@@ -1190,26 +1190,26 @@ res_df |>
 
 ### Varying $K$ and $\bar{\lambda}$
 
-```{r}
+```{r warning=FALSE}
 all_res <- list()
 i <- 0
 for (K in seq(10, 100, 20)) {
   for (lambda_bar in seq(10, 100, 20)) {
-  i <- i + 1
+    i <- i + 1
 
-  res <- find_optimal_k_and_lambda(
-    K = K,
-    lambda_bar = lambda_bar,
-    c = 1,
-    d = 1,
-    mu = 1,
-    alpha = 0.5,
-    k_step = 1,
-    lambda_step = 1,
-    prefer_smaller_price = FALSE
-  )
-  res$queue_len_dist <- NULL
-  all_res[[i]] <- res
+    res <- find_optimal_k_and_lambda(
+      K = K,
+      lambda_bar = lambda_bar,
+      c = 1,
+      d = 1,
+      mu = 1,
+      alpha = 0.5,
+      k_step = 1,
+      lambda_step = 1,
+      prefer_smaller_price = FALSE
+    )
+    res$queue_len_dist <- NULL
+    all_res[[i]] <- res
   }
 }
 
@@ -1219,10 +1219,10 @@ res_df
 
 plot_cols <- c("k", "lambda", "rho", "Wq", "price", "wage", "profit")
 res_df |>
-  mutate_at(all_of(plot_cols), scale) |> 
+  mutate_at(all_of(plot_cols), scale) |>
   select(K, lambda_bar, k, lambda, rho, Wq, price, wage, profit) |>
   pivot_longer(all_of(plot_cols)) |>
-  rename(`z-score` = value) |> 
+  rename(`z-score` = value) |>
   ggplot(aes(x = K, y = lambda_bar, fill = `z-score`)) +
   geom_tile() +
   facet_wrap(~name)
