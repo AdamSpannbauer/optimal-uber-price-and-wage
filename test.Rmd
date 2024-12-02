@@ -14,6 +14,11 @@ output:
     css: styles.css
 ---
 
+# Slides
+
+<embed src="slides-compressed.pdf#view=Fit" type="application/pdf" width="100%" height="600px">
+
+
 ```{r}
 data.frame(
   asdf = vapply(1:16, function(i) {
