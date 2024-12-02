@@ -1,4 +1,3 @@
-.pagedtable {
-  width: 50%;
-  margin: 0 auto;
+table.df_paged td:nth-child(n):not(:has(input)) {
+  text-align: right;
 }

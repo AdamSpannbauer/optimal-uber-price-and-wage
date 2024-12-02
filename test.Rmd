@@ -1,0 +1,35 @@
+---
+title: "test"
+author: "Adam Spannbauer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    mathjax: "default"
+    code_folding: hide
+    df_print: paged
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    css: styles.css
+---
+
+```{r}
+data.frame(
+  asdf = vapply(1:16, function(i) {
+    paste(sample(LETTERS, sample(4:16, 1)), collapse = "")
+  }, character(1)),
+  fdas = as.numeric(sprintf("%.3f", runif(16)))
+)
+```
+
+```{r}
+data.frame(
+  asdf = vapply(1:16, function(i) {
+    paste(sample(LETTERS, sample(4:16, 1)), collapse = "")
+  }, character(1)),
+  fdas = as.numeric(sprintf("%.3f", runif(16)))
+)
+```
+
+
