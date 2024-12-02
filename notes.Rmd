@@ -11,12 +11,14 @@ output:
     toc: true
     toc_float: true
     toc_depth: 4
+    css: styles.css
 ---
 
 ```{r setup, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(triangle)
 library(patchwork)
+library(plotly)
 
 plot_shaded_normal <- function(mean, sd, p = 0.5) {
   shade_up_to_x <- qnorm(p, mean = mean, sd = sd)
@@ -197,7 +199,7 @@ For given
 -   Cost of wait per unit time ( $c$ )
 -   Inverse CDF of customer valuation of service per unit ( $v \sim F(\cdot)$ )
 
-```{r}
+```{r price_rate_func}
 # Price rate as a function of service level
 price_rate <- function(lambda, lambda_bar, c, d, Wq, Finv = \(p) qunif(p = p, min = 0, max = 1)) {
   s <- lambda / lambda_bar
@@ -218,7 +220,7 @@ These relationships are the similar in behavior regardless of choice of value di
 
 These notes don't reflect how $\lambda$ and $W_q$ are related (i.e. more requests would lead to more wait time assuming the same supply).
 
-```{r  fig.height=3, fig.align="center"}
+```{r price_inputs, fig.height=3, fig.align="center"}
 ex_range <- 0:10
 
 lambda_bar <- 10
@@ -274,7 +276,7 @@ func_behavior_df |>
 
 The paper will use a uniform distribution $[0, 1]$ to simplify analysis but insights extend to other families
 
-```{r fig.height=3, fig.align="center"}
+```{r uniform_dist_eg_price, fig.height=3, fig.align="center"}
 c <- 2
 d <- 2
 Wq <- 2
@@ -329,7 +331,7 @@ p1 + p2
 
 #### Normal distribution of value $v \sim F_{normal}(\cdot)$
 
-```{r fig.height=3, fig.align="center"}
+```{r normal_dist_eg_price, fig.height=3, fig.align="center"}
 c <- 2
 d <- 2
 Wq <- 2
@@ -421,7 +423,7 @@ For given
 -   Number of requesting customers ( $\lambda$ )
 -   Inverse CDF of provider reservation rate ( $r \sim G(\cdot)$ )
 
-```{r}
+```{r wage_rate_func}
 # Wage rate as a function of provider participation rate
 wage_rate <- function(k, K, lambda, d, Ginv = \(p) qunif(p = p, min = 0, max = 1)) {
   Ginv(k / K) * (k / (lambda * d))
@@ -438,7 +440,7 @@ These relationships are the similar in behavior regardless of choice of reservat
 -   If $d$ increases (and target participation rate is the same), we pay less since the pay out per fare increases (more units of pay)
 -   If $k$ increases (aka target participation rate increases), we need to pay more to incentivize providers to enter
 
-```{r  fig.height=3, fig.align="center"}
+```{r wage_inputs, fig.height=3, fig.align="center"}
 ex_range <- 0:10
 
 K <- 10
@@ -489,7 +491,7 @@ func_behavior_df |>
 
 The paper will use a uniform distribution $[0, 1]$ to simplify analysis but insights extend to other families
 
-```{r fig.height=3, fig.align="center"}
+```{r uniform_dist_eg_wage, fig.height=3, fig.align="center"}
 lambda <- 2
 d <- 2
 
@@ -594,7 +596,7 @@ p1 + p2
 
             -   This implies $k^2 = {K \lambda d}\alpha \left[ \left(1 - \frac{\lambda}{\bar{\lambda}}\right) - \frac{c}{d} W_q \right]$
 
-```{r}
+```{r profit_funcs}
 exact_wait_time_ <- function(k, lambda, mu, d) {
   # $$
   # W_q = \frac{1}{1 + \left( \frac{k! (1 - \rho)}{k^k \rho^k} \right) \sum_{i=0}^{k-1} \frac{k^i \rho^i}{i!}} \left[ \frac{\rho}{\lambda (1 - \rho)} \right]
@@ -621,13 +623,46 @@ exact_wait_time_ <- function(k, lambda, mu, d) {
 
 exact_wait_time <- Vectorize(exact_wait_time_, c("k", "lambda", "mu", "d"))
 
+prob_queue_len <- function(i, k, lambda, mu, d) {
+  rho <- (lambda * d) / (k * mu)
+
+  n <- 0:(k - 1)
+  p_0 <- 1 / (sum(rho^n / factorial(n)) + (rho^k / factorial(k)) * (1 / (1 - rho)))
+
+  if (i == 0) {
+    p_i <- p_0
+  } else if (i < k) {
+    p_i <- (rho^i / factorial(i)) * p_0
+  } else {
+    p_i <- (rho^i / (factorial(k) * k^(i - k))) * p_0
+  }
+
+  return(p_i)
+}
+
+queue_len_probs <- function(k, lambda, mu, d) {
+  probs <- c()
+  i_vals <- 0:(k + 10)
+  for (i in i_vals) {
+    p_i <- prob_queue_len(i, k, lambda, mu, d)
+    probs[i + 1] <- p_i
+  }
+
+  return(data.frame(len = i_vals, prob = probs))
+}
+
 check_rho_constraint <- function(lambda, d, k, mu) {
   rho <- (lambda * d) / (k * mu)
 
   return(rho < 1)
 }
 
-check_fixed_payout_constraint <- function(k, K, lambda, lambda_bar, c, d, mu, alpha, tolerance = 0.01) {
+check_fixed_payout_constraint <- function(
+    k, K, lambda, lambda_bar,
+    c, d,
+    mu,
+    alpha,
+    tolerance = 0.01) {
   v1 <- k^2
 
   Wq <- exact_wait_time(k, lambda, mu, d)
@@ -636,7 +671,13 @@ check_fixed_payout_constraint <- function(k, K, lambda, lambda_bar, c, d, mu, al
   return(isTRUE(all.equal(v1, v2, tolerance = tolerance)))
 }
 
-profit_function <- function(k, K, lambda, lambda_bar, c, d, mu, alpha) {
+profit_function <- function(
+    k, K, lambda, lambda_bar,
+    c, d,
+    mu,
+    alpha,
+    Finv = \(p) qunif(p, min = 0, max = 1),
+    Ginv = \(p) qunif(p, min = 0, max = 1)) {
   meets_rho_constraint <- check_rho_constraint(lambda, d, k, mu)
 
   if (!meets_rho_constraint) {
@@ -657,8 +698,8 @@ profit_function <- function(k, K, lambda, lambda_bar, c, d, mu, alpha) {
 
   Wq <- exact_wait_time(k, lambda, mu, d)
 
-  price <- price_rate(lambda, lambda_bar, c, d, Wq)
-  wage <- wage_rate(k, K, lambda, d)
+  price <- price_rate(lambda, lambda_bar, c, d, Wq, Finv)
+  wage <- wage_rate(k, K, lambda, d, Ginv)
 
   profit <- (k^2 * (1 - alpha)) / (K * alpha)
 
@@ -673,6 +714,8 @@ profit_function <- function(k, K, lambda, lambda_bar, c, d, mu, alpha) {
     rho = (lambda * d) / (k * mu),
     alpha = alpha,
     Wq = Wq,
+    Lq = lambda * Wq,
+    queue_len_dist = queue_len_probs(k, lambda, mu, d),
     price = price,
     wage = wage,
     profit = profit,
@@ -696,18 +739,28 @@ display_results <- function(res) {
 
 Here is the results for row 1 of Table 1 to show my formulation matches.
 
-```{r}
+```{r profit_calc_eg1}
 res <- profit_function(k = 7, K = 50, lambda = 2.71, lambda_bar = 10, c = 1, d = 1, mu = 1, alpha = 0.5)
+
+res$queue_len_dist |>
+  filter(prob > 0.01) |>
+  ggplot(aes(x = len, y = prob)) +
+  geom_bar(stat = "identity")
 
 display_results(res)
 ```
 
 Interestingly, and unreported by the paper.
 This is not a unique solution.
-There Table 1 seems to prefer a solution with higher price and lower wait times.
+Their Table 1 seems to prefer a solution with higher price and lower wait times.
 
-```{r}
+```{r profit_calc_eg2}
 res <- profit_function(k = 7, K = 50, lambda = 4.73, lambda_bar = 10, c = 1, d = 1, mu = 1, alpha = 0.5)
+
+res$queue_len_dist |>
+  filter(prob > 0.01) |>
+  ggplot(aes(x = len, y = prob)) +
+  geom_bar(stat = "identity")
 
 display_results(res)
 ```
@@ -717,31 +770,35 @@ display_results(res)
 My formulation matches paper results, but to save time I've used a lower precision.
 Because of this, my optimal values for lambda will be off from paper table by decimal amounts.
 
-```{r}
+```{r find_opt_k_lambda_func}
 find_optimal_k_and_lambda <- function(
     K, lambda_bar, c, d, mu, alpha,
+    Finv = \(p) qunif(p, min = 0, max = 1),
+    Ginv = \(p) qunif(p, min = 0, max = 1),
     prefer_smaller_price = TRUE,
-    lambda_tol = 0.01) {
+    k_step = 1,
+    lambda_step = 0.01,
+    tied_profit_tolerance = 0.001) {
   best_outcome <- NULL
 
-  possible_k <- 1:K
-  possible_lambda <- seq(lambda_tol, k, by = lambda_tol)
+  possible_k <- seq(1, K, by = k_step)
 
+  # if (interactive()) {
+  #   n_iter <- length(possible_k) * length(possible_lambda)
+  #   pb <- txtProgressBar(min = 0, max = n_iter, style = 3)
+  #   progress <- 0
+  # }
 
-  if (interactive()) {
-    n_iter <- length(possible_k) * length(possible_lambda)
-    pb <- txtProgressBar(min = 0, max = n_iter, style = 3)
-    progress <- 0
-  }
-
-  for (k in 1:K) {
+  for (k in possible_k) {
+    possible_lambda <- seq(lambda_step, k, by = lambda_step)
     for (lambda in possible_lambda) {
       res <- profit_function(
         k = k, K = K,
         lambda = lambda, lambda_bar = lambda_bar,
         c = c, d = d,
         mu = mu,
-        alpha = alpha
+        alpha = alpha,
+        Finv = Finv, Ginv = Ginv
       )
 
       if (res$meets_rho_constraint & res$meets_fixed_payout_constraint) {
@@ -756,7 +813,7 @@ find_optimal_k_and_lambda <- function(
         }
 
         # if profit is tied with best (within a tolerance)
-        if (isTRUE(all.equal(res$profit, best_outcome$profit, tolerance = 0.001))) {
+        if (isTRUE(all.equal(res$profit, best_outcome$profit, tolerance = tied_profit_tolerance))) {
           if (prefer_smaller_price & res$price < best_outcome$price) {
             best_outcome <- res
           } else if (!prefer_smaller_price & res$price > best_outcome$price) {
@@ -765,23 +822,23 @@ find_optimal_k_and_lambda <- function(
         }
       }
 
-      if (interactive()) {
-        progress <- progress + 1
-        setTxtProgressBar(pb, progress)
-      }
+      # if (interactive()) {
+      #   progress <- progress + 1
+      #   setTxtProgressBar(pb, progress)
+      # }
     }
   }
 
-  if (interactive()) {
-    close(pb)
-  }
+  # if (interactive()) {
+  #   close(pb)
+  # }
   return(best_outcome)
 }
 ```
 
 Here is the results for row 1 of Table 1 to show my formulation can find the same solution, but with a lack of precision.
 
-```{r}
+```{r opt_eg_1}
 res <- find_optimal_k_and_lambda(
   K = 50,
   lambda_bar = 10,
@@ -795,7 +852,7 @@ res <- find_optimal_k_and_lambda(
 display_results(res)
 ```
 
-```{r}
+```{r opt_eg_2}
 res <- find_optimal_k_and_lambda(
   K = 50,
   lambda_bar = 10,
@@ -809,12 +866,305 @@ res <- find_optimal_k_and_lambda(
 display_results(res)
 ```
 
+### How inputs affect shape
+
+#### $\alpha$ - wage rate percentage of price
+
+##### Preferring higher prices
+
+```{r alpha_relationship_1}
+all_res <- list()
+i <- 0
+for (alpha in seq(0.1, 0.9, 0.1)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = 10,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = alpha,
+    prefer_smaller_price = FALSE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, rho, alpha, Wq, price, wage, profit) |>
+  pivot_longer(-alpha) |>
+  ggplot(aes(x = alpha, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+##### Preferring lower prices
+
+```{r alpha_relationship_2}
+all_res <- list()
+i <- 0
+for (alpha in seq(0.1, 0.9, 0.1)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = 10,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = alpha,
+    prefer_smaller_price = TRUE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, rho, alpha, Wq, price, wage, profit) |>
+  pivot_longer(-alpha) |>
+  ggplot(aes(x = alpha, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+
+#### $\bar{\lambda}$ - max requests
+
+##### Preferring higher prices
+
+```{r lambda_bar_relationship_1}
+all_res <- list()
+i <- 0
+for (lambda_bar in seq(10, 100, 10)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = lambda_bar,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = 0.5,
+    prefer_smaller_price = FALSE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, lambda_bar, rho, Wq, price, wage, profit) |>
+  pivot_longer(-lambda_bar) |>
+  ggplot(aes(x = lambda_bar, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+##### Preferring lower prices
+
+```{r lambda_bar_relationship_2}
+all_res <- list()
+i <- 0
+for (lambda_bar in seq(10, 100, 10)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = lambda_bar,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = 0.5,
+    prefer_smaller_price = TRUE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, lambda_bar, rho, Wq, price, wage, profit) |>
+  pivot_longer(-lambda_bar) |>
+  ggplot(aes(x = lambda_bar, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+#### $d$ - average service units
+
+##### Preferring higher prices
+
+```{r d_relationship_1}
+all_res <- list()
+i <- 0
+for (d in seq(1, 10, 2)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = 10,
+    c = 1,
+    d = d,
+    mu = 1,
+    alpha = 0.5,
+    prefer_smaller_price = FALSE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, d, rho, Wq, price, wage, profit) |>
+  pivot_longer(-d) |>
+  ggplot(aes(x = d, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+##### Preferring lower prices
+
+```{r d_relationship_2}
+all_res <- list()
+i <- 0
+for (d in seq(1, 10, 2)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = 10,
+    c = 1,
+    d = d,
+    mu = 1,
+    alpha = 0.5,
+    prefer_smaller_price = TRUE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, d, rho, Wq, price, wage, profit) |>
+  pivot_longer(-d) |>
+  ggplot(aes(x = d, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+#### Allowing non-integer $k$
+
+##### $\alpha$
+
+```{r non_int_alpha_relationship}
+all_res <- list()
+i <- 0
+for (alpha in seq(0.1, 0.9, 0.1)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = 20,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = alpha,
+    k_step = 0.2,
+    lambda_step = 0.2,
+    prefer_smaller_price = FALSE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, rho, alpha, Wq, price, wage, profit) |>
+  pivot_longer(-alpha) |>
+  ggplot(aes(x = alpha, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+##### $\bar{\lambda}$
+
+```{r non_int_lambda_bar_relationship}
+all_res <- list()
+i <- 0
+for (lambda_bar in seq(10, 100, 10)) {
+  i <- i + 1
+
+  res <- find_optimal_k_and_lambda(
+    K = 50,
+    lambda_bar = lambda_bar,
+    c = 1,
+    d = 1,
+    mu = 1,
+    alpha = 0.5,
+    k_step = 0.2,
+    lambda_step = 0.2,
+    prefer_smaller_price = FALSE
+  )
+  res$queue_len_dist <- NULL
+  all_res[[i]] <- res
+}
+
+res_df <- do.call(rbind, lapply(all_res, as.data.frame))
+
+res_df
+
+res_df |>
+  select(k, lambda, lambda_bar, rho, Wq, price, wage, profit) |>
+  pivot_longer(-lambda_bar) |>
+  ggplot(aes(x = lambda_bar, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~name, scales = "free_y")
+```
+
+### An approximation scheme
+
 -   To approximate and give tractable analytical results can instead be approximated with $W_q = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }$
 
     -   The approximation formula is exact for an $M/M/1$ queue (i.e. plug $k = 1$ into above complex form and it reduces to $W_q = \frac{ \rho ^ 2 }{ \lambda (1 - \rho) } = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }$ )
     -   The approximation has been shown (see Sakasegawa 1977) to provide a very good estimate when $k > 1$ .
+    
+See below for how this approximation compares to more exact, but more unwieldy formulation.
 
-```{r}
+The paper actually goes further from exact calc and rewrites to be $W_q = \frac{ \rho ^ \sqrt{2 (n + 1)} }{ \lambda (1 - \rho) }$.  And $n$ is set to be $k^*$.  This means for $k^*$, $W_q$ is well approximated, but for values of $k < k^*$ the $W_q$ will be over estimated and for values of $k > k^*$, $W_q$ will be underestimated.
+
+```{r approx_wait_time}
 approx_wait_time_ <- function(k, lambda, mu, d) {
   # $$
   # W_q = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }
@@ -833,7 +1183,7 @@ approx_wait_time_ <- function(k, lambda, mu, d) {
 approx_wait_time <- Vectorize(approx_wait_time_, c("k", "lambda", "mu", "d"))
 ```
 
-```{r fig.height=3, fig.align="center"}
+```{r plot_approx_wait_time, fig.height=3, fig.align="center"}
 k <- 1:50
 
 lambda <- 4
