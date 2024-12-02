@@ -96,6 +96,10 @@ Manufacturing & Service Operations Management, 21(3), 556-570.
 
 ------------------------------------------------------------------------
 
+# Slides
+
+<embed src="slides.pdf#view=Fit" type="application/pdf" width="100%" height="600px">
+
 # Notes
 
 ## General overview and goals
@@ -1228,12 +1232,6 @@ res_df |>
   facet_wrap(~name)
 ```
 
-#### Finding optimal alpha
-
-```{r}
-# ... to be continued
-```
-
 ## An approximation scheme
 
 -   To approximate and give tractable analytical results can instead be approximated with $W_q = \frac{ \rho ^ \sqrt{2 (k + 1)} }{ \lambda (1 - \rho) }$
@@ -1294,6 +1292,46 @@ ggplot(wait_time_compare, aes(x = k, y = value, color = Formula, linetype = Form
   )
 ```
 
-# Slides
+#### Finding optimal alpha for given $K$ & $\bar{\lambda}$
 
-<embed src="slides.pdf#view=Fit" type="application/pdf" width="100%" height="600px">
+This is a remake of Table 6 in the paper to apply conditional formatting.
+
+```{r}
+# Example data: Replace this with your actual data
+data <- data.frame(
+  lambda = seq(10, 100, by = 10), # Row values (lambda)
+  K10 = c(0.67, 0.67, 0.67, 0.67, 0.67, 0.68, 0.68, 0.68, 0.68, 0.68),
+  K20 = c(0.49, 0.52, 0.54, 0.55, 0.56, 0.56, 0.57, 0.57, 0.57, 0.57),
+  K30 = c(0.42, 0.46, 0.48, 0.49, 0.51, 0.51, 0.52, 0.53, 0.53, 0.53),
+  K40 = c(0.36, 0.41, 0.44, 0.46, 0.47, 0.48, 0.49, 0.49, 0.50, 0.50),
+  K50 = c(0.33, 0.37, 0.40, 0.42, 0.44, 0.45, 0.46, 0.47, 0.48, 0.48),
+  K60 = c(0.30, 0.34, 0.38, 0.40, 0.42, 0.43, 0.44, 0.45, 0.46, 0.46),
+  K70 = c(0.27, 0.32, 0.35, 0.38, 0.39, 0.41, 0.42, 0.43, 0.44, 0.45),
+  K80 = c(0.25, 0.30, 0.33, 0.36, 0.38, 0.39, 0.40, 0.41, 0.42, 0.43),
+  K90 = c(0.24, 0.28, 0.31, 0.34, 0.36, 0.38, 0.39, 0.40, 0.41, 0.42),
+  K100 = c(0.22, 0.27, 0.30, 0.32, 0.34, 0.36, 0.37, 0.39, 0.40, 0.41)
+)
+
+# Reshape data to long format
+long_data <- data %>%
+  pivot_longer(
+    cols = starts_with("K"), # Select columns K10, K20, ..., K100
+    names_to = "K",
+    names_prefix = "K",
+    values_to = "value"
+  ) |>
+  mutate(K = as.numeric(K))
+
+# Create a heatmap
+ggplot(long_data, aes(x = K, y = lambda, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", value)), color = "black", size = 3) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  labs(x = "K", y = expression(bar(lambda)), fill = expression(alpha)) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.title.y = element_text(angle = 0, vjust = 0.5)
+  ) +
+  scale_y_reverse()
+```
