@@ -16,7 +16,7 @@ output:
 
 # Slides
 
-<embed src="slides-compressed.pdf#view=Fit" type="application/pdf" width="100%" height="600px">
+The slides are too large to embed in this document.  A pdf version of the slides can be downloaded and viewed by clicking [Here: Download Slides (PDF)](slides.pdf)
 
 
 ```{r}

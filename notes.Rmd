@@ -98,7 +98,7 @@ Manufacturing & Service Operations Management, 21(3), 556-570.
 
 # Slides
 
-<embed src="slides.pdf#view=Fit" type="application/pdf" width="100%" height="600px">
+The slides used to be embedded... but they are too large to embed in this document anymore.  A pdf version of the slides can be downloaded and viewed by clicking [Here: Download Slides (PDF)](slides.pdf)
 
 # Notes
 
