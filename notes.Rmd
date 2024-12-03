@@ -100,8 +100,6 @@ Manufacturing & Service Operations Management, 21(3), 556-570.
 
 The slides used to be embedded... but they are too large to embed in this document anymore.  A pdf version of the slides can be downloaded and viewed by clicking [Here: Download Slides (PDF)](slides.pdf)
 
-<iframe src = "slides.pdf" width = "80%" height = "700px" style = "border: none;"/>
-
 # Notes
 
 ## General overview and goals
