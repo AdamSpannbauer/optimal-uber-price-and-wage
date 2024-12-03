@@ -100,6 +100,8 @@ Manufacturing & Service Operations Management, 21(3), 556-570.
 
 The slides used to be embedded... but they are too large to embed in this document anymore.  A pdf version of the slides can be downloaded and viewed by clicking [Here: Download Slides (PDF)](slides.pdf)
 
+<iframe src = "slides.pdf" width = "80%" height = "700px" style = "border: none;"/>
+
 # Notes
 
 ## General overview and goals
@@ -280,9 +282,9 @@ func_behavior_df |>
 The paper will use a uniform distribution $[0, 1]$ to simplify analysis but insights extend to other families
 
 ```{r uniform_dist_eg_price, fig.height=3, fig.align="center"}
-c <- 2
+c <- 0.25
 d <- 2
-Wq <- 2
+Wq <- 0.5
 
 # value dist (unifo) params
 Finv <- \(p) qunif(p = p, min = 0, max = 1)
